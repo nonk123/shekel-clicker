@@ -1,0 +1,35 @@
+.center-text {
+    text-align: center;
+}
+
+.shekel-button {
+    width: 50%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    background-color: transparent;
+    border: none;
+}
+
+.shekel-count {
+    font-size: 30px;
+    text-align: center;
+}
+
+.upgrades {
+    width: 50%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.upgrade {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.buy-button {
+    width: 30px;
+    height: 30px;
+}

@@ -1,0 +1,8 @@
+[package]
+name = "schedule-thing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+yew = "0.18"
+num-bigint = "0.4.3"

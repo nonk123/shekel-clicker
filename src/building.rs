@@ -1,5 +1,7 @@
 use num_bigint::BigUint;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct Building {
     pub name: String,
     pub shekels_per_second: BigUint,

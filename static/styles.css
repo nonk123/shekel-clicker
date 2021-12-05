@@ -1,5 +1,6 @@
-.center-text {
-    text-align: center;
+.buttons {
+    display: flex;
+    gap: 10px;
 }
 
 .shekel-container {

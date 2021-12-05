@@ -234,7 +234,8 @@ impl Model {
     }
 
     fn calculate_building_income(&self, building: &Building) -> BigUint {
-        building.calculate_income() * self.state.taxation_upgrade.get_value() / 100u32
+        let income = building.calculate_income();
+        &income + &income * self.state.taxation_upgrade.get_value() / 100u32
     }
 
     fn save(&mut self) {

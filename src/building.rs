@@ -1,29 +1,31 @@
 use num_bigint::BigUint;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
-pub struct Building {
-    pub name: String,
-    pub shekels_per_second: BigUint,
-    pub count: BigUint,
-    pub cost: BigUint,
+use crate::item_struct;
+
+item_struct! {
+    Building {
+        {
+            name: String,
+            shekels_per_second: BigUint,
+        }
+
+        fn adjust_cost(&mut self) {
+            self.cost = &self.cost + &self.cost / 2u32;
+        }
+    }
 }
 
 impl Building {
-    pub fn new(name: String, shekels_per_second: BigUint, cost: BigUint) -> Self {
+    pub fn new(name: &str, shekels_per_second: BigUint, cost: BigUint) -> Self {
         Self {
-            name,
+            name: name.to_string(),
             shekels_per_second,
-            count: BigUint::from(0u32),
+            level: 0u32.into(),
             cost,
         }
     }
 
     pub fn calculate_income(&self) -> BigUint {
-        &self.shekels_per_second * &self.count
-    }
-
-    pub fn adjust_cost(&mut self) {
-        self.cost = &self.cost + &self.cost / BigUint::from(2u32);
+        &self.shekels_per_second * &self.level
     }
 }

@@ -1,13 +1,8 @@
-use std::time::Duration;
-
+use gloo_storage::{LocalStorage, Storage};
+use gloo_timers::callback::Interval;
 use lazy_static::lazy_static;
 use num_bigint::BigUint;
-use upgrade::Upgrade;
-use yew::{
-    format::Json,
-    prelude::*,
-    services::{interval::IntervalTask, storage::Area, IntervalService, StorageService},
-};
+use yew::prelude::*;
 
 mod building;
 mod item;
@@ -16,6 +11,7 @@ mod upgrade;
 
 use building::Building;
 use state::State;
+use upgrade::Upgrade;
 
 pub const SHEKEL: &str = "₪";
 pub const SHEKELS_PER_SECOND: &str = " ₪/s";
@@ -39,36 +35,26 @@ enum Msg {
 }
 
 struct Model {
-    link: ComponentLink<Self>,
-    storage: StorageService,
     state: State,
-    #[allow(dead_code)]
-    tick_task: IntervalTask,
-    #[allow(dead_code)]
-    save_task: IntervalTask,
 }
 
 impl Component for Model {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let tick_task = IntervalService::spawn(Duration::new(1, 0), link.callback(|_| Msg::Tick));
-        let save_task = IntervalService::spawn(Duration::new(20, 0), link.callback(|_| Msg::Save));
+    fn create(ctx: &Context<Self>) -> Self {
+        let link = ctx.link().clone();
+        Interval::new(1_000, move || link.send_message(Msg::Tick)).forget();
 
-        let mut storage = StorageService::new(Area::Local).expect("local storage");
-        let state = Self::load_save(&mut storage);
+        let link = ctx.link().clone();
+        Interval::new(20_000, move || link.send_message(Msg::Save)).forget();
 
-        Self {
-            link,
-            storage,
-            state,
-            tick_task,
-            save_task,
-        }
+        let state = Self::load_save();
+
+        Self { state }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         use Msg::*;
 
         match msg {
@@ -122,17 +108,16 @@ impl Component for Model {
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div>
                 <div class="shekel-container">
-                    <button onclick=self.link.callback(|_| Msg::ClickShekel)
-                            class="shekel-button">
-                        <img draggable="false" style="width: 100%" src="/shekel.png"/>
+                    <button
+                        onclick={ ctx.link().callback(|_| Msg::ClickShekel) }
+                        class="shekel-button"
+                    >
+                        <img draggable="false" style="width: 100%" src="/shekel.png"
+                             alt="The mother-shekel. Click it!"/>
                     </button>
                     <div class="shekel-count">{ self.state.shekel_count.to_string() } { SHEKEL }</div>
                 </div>
@@ -141,19 +126,19 @@ impl Component for Model {
                     <div>{ "Income: " } { self.calculate_total_income() } { SHEKELS_PER_SECOND }</div>
                     <div>{ self.calculate_shekels_per_click() } { SHEKEL } { " per click" }</div>
                     <div class="buttons">
-                        <button onclick=self.link.callback(|_| Msg::Save)>{ "Save" }</button>
-                        <button onclick=self.link.callback(|_| Msg::ResetSave)>{ "Reset" }</button>
-                        <button onclick=self.link.callback(|_| Msg::Hack)>{ "Hack" }</button>
+                        <button onclick={ ctx.link().callback(|_| Msg::Save) }>{ "Save" }</button>
+                        <button onclick={ ctx.link().callback(|_| Msg::ResetSave) }>{ "Reset" }</button>
+                        <button onclick={ ctx.link().callback(|_| Msg::Hack) }>{ "Hack" }</button>
                     </div>
                     <h1>{ "Upgrades" }</h1>
                     <table class="upgrades">
-                        { self.view_upgrade(&self.state.taxation_upgrade, |count| Msg::UpgradeTaxation(count)) }
-                        { self.view_upgrade(&self.state.thievery_upgrade, |count| Msg::UpgradeThievery(count)) }
+                        { self.view_upgrade(ctx, &self.state.taxation_upgrade, |count| Msg::UpgradeTaxation(count)) }
+                        { self.view_upgrade(ctx, &self.state.thievery_upgrade, |count| Msg::UpgradeThievery(count)) }
                     </table>
                     <h1>{ "Buildings" }</h1>
                     <table class="buildings">
                         { for self.state.building_types.iter().enumerate().map(|(index, building)| {
-                            self.view_building(index, building)
+                            self.view_building(ctx, index, building)
                         }) }
                     </table>
                 </div>
@@ -163,9 +148,9 @@ impl Component for Model {
 }
 
 impl Model {
-    fn view_building(&self, index: usize, building: &Building) -> Html {
+    fn view_building(&self, ctx: &Context<Self>, index: usize, building: &Building) -> Html {
         let buy = move |count: BigUint| {
-            self.link
+            ctx.link()
                 .callback(move |_| Msg::BuildingBought(index, count.clone()))
         };
 
@@ -191,7 +176,7 @@ impl Model {
 
                     html! {
                         <td>
-                            <button class="buy-button" onclick=buy(count.clone())>
+                            <button class="buy-button" onclick={ buy(count.clone()) }>
                                 { count.to_string() }
                             </button>
                         </td>
@@ -201,7 +186,12 @@ impl Model {
         }
     }
 
-    fn view_upgrade<T>(&self, upgrade: &Upgrade, upgrade_message_provider: T) -> Html
+    fn view_upgrade<T>(
+        &self,
+        ctx: &Context<Self>,
+        upgrade: &Upgrade,
+        upgrade_message_provider: T,
+    ) -> Html
     where
         T: Fn(BigUint) -> Msg + Copy + 'static,
     {
@@ -215,11 +205,11 @@ impl Model {
                     let count = BigUint::from(*count);
 
                     let buy =
-                        move |count: BigUint| self.link.callback(move |_| upgrade_message_provider(count.clone()));
+                        move |count: BigUint| ctx.link().callback(move |_| upgrade_message_provider(count.clone()));
 
                     html! {
                         <td>
-                            <button class="buy-button" onclick=buy(count.clone())>
+                            <button class="buy-button" onclick={ buy(count.clone()) }>
                                 { count.to_string() }
                             </button>
                         </td>
@@ -239,23 +229,24 @@ impl Model {
     }
 
     fn save(&mut self) {
-        self.storage.store("save", Json(&self.state));
+        LocalStorage::set("save", &self.state).unwrap();
     }
 
-    fn load_save(storage: &mut StorageService) -> State {
-        let result: Result<String, _> = storage.restore("save");
+    fn load_save() -> State {
+        let result: Result<State, _> = LocalStorage::get("save");
 
-        if result.is_ok() {
-            serde_json::from_str(&result.unwrap()).expect("save")
-        } else {
-            let save = State::new();
-            storage.store("save", Json(&save));
-            save
+        match result {
+            Ok(result) => result,
+            Err(_) => {
+                let save = State::new();
+                LocalStorage::set("save", &save).unwrap();
+                save
+            }
         }
     }
 
     fn reset_save(&mut self) {
-        self.storage.remove("save");
+        LocalStorage::delete("save");
         self.state = State::new();
     }
 
